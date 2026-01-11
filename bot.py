@@ -5,11 +5,15 @@ import logging
 from dotenv import load_dotenv
 import telebot
 from telebot import types
+import requests
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("Не найден BOT_TOKEN в .env")
+
+RATE_TOKEN = os.getenv("RATE_TOKEN")
+RATE_PWD = os.getenv("RATE_PWD")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +65,7 @@ def send_help(message: telebot.types.Message):
         "/about - Информация о боте\n"
         "/capabilities - Возможности бота\n"
         "/faq - Часто задаваемые вопросы\n"
+        "/fx - Курс валют\n"
         "/ping - Проверка доступности бота"
     )
     bot.reply_to(message, response)
@@ -107,6 +112,20 @@ def send_faq(message: telebot.types.Message):
 def send_ping(message: telebot.types.Message):
     bot.reply_to(message, "Pong!")
 
+@bot.message_handler(commands=['fx'])
+def send_fx(message: telebot.types.Message):
+    try:
+        usd_rub, eur_usd = get_fx_rates()
+        text = (
+            f"📊 <b>Курсы валют</b>\n"
+            f"1 USD = {usd_rub:.2f} RUB\n"
+            f"1 EUR = {eur_usd:.2f} USD\n\n"
+            f"{DISCLAIMER}"
+        )
+    except Exception:
+        text = "Не удалось загрузить данные о курсах валют."
+    bot.reply_to(message, text)
+
 
 def mini_analysis_template(num: str) -> str:
     return (
@@ -129,6 +148,17 @@ def handle_text(message: telebot.types.Message):
         else:
             bot.reply_to(message, "Укажите номер сообщения для анализа.")
             return
+    if "курс" in text or "usd" in text or "eur" in text:
+        return send_fx(message)
+
+def get_fx_rates():
+    url = f"https://currate.ru/api/?get=rates&pairs=USDRUB,EURUSD&key={RATE_TOKEN}"
+    resp = requests.get(url, timeout=30)
+    data = resp.json()
+    usd_rub = float(data["data"]["USDRUB"])
+    eur_usd = float(data["data"]["EURUSD"])
+    return usd_rub, eur_usd
+
 
 if __name__ == "__main__":
     print("Bot is running...")
