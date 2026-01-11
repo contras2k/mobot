@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 import telebot
 from telebot import types
 import requests
+import csv
+import statistics
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -14,6 +16,9 @@ if not BOT_TOKEN:
 
 RATE_TOKEN = os.getenv("RATE_TOKEN")
 RATE_PWD = os.getenv("RATE_PWD")
+
+# Файл с вакансиями
+CSV_FILE = 'demo.csv'
 
 logging.basicConfig(
     level=logging.INFO,
@@ -126,6 +131,31 @@ def send_fx(message: telebot.types.Message):
         text = "Не удалось загрузить данные о курсах валют."
     bot.reply_to(message, text)
 
+@bot.message_handler(commands=['report'])
+def send_report(message: telebot.types.Message):
+    # Анализируем аргументы команды
+    arguments = message.text.strip().split()
+    if len(arguments) != 2 or arguments[1].lower() not in ["медиана", "количество"]:
+        return bot.reply_to(message, "Неправильный формат команды. Используйте: /report медиана или /report количество")
+
+    subject = arguments[1].lower()
+
+    with open(CSV_FILE, mode='r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        data = list(reader)
+
+    if not data:
+        return bot.reply_to(message, "Файл пуст")
+
+    if subject == "медиана":
+        salaries = [int(row["salary"]) for row in data]
+        median_salary = statistics.median(salaries)
+        result_message = f"Медиана зарплат: {median_salary}"
+    else:  # subject == "количество"
+        count_records = len(data)
+        result_message = f"В файле {count_records} записей"
+
+    bot.reply_to(message, result_message)
 
 def mini_analysis_template(num: str) -> str:
     return (
